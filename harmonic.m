@@ -1,10 +1,10 @@
 clear;close all;clc;
 
+b=importfile("B4T3_10nm_Py_5nm_harmonic900(mT)_300(K)_7(Vrms)_.txt",5,900);
 
 
 
-
-function importModifiedData = importfile(filename, thickness, magneticField, startRow, endRow)
+function y = importfile(filename, thickness, magneticField, startRow, endRow)
 %% Initialization
 delimiter = '\t';
 if nargin<=4
@@ -33,6 +33,8 @@ end
 fclose(fileID);
 
 %% Name the data column.
-eval(["b4t3_10nm_Py_", thickness , "_" , magneticField , "mT = [dataArray{1:end-1}];"])
+
+y=[dataArray{1:end-1}];
+
 
 end
