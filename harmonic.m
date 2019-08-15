@@ -10,10 +10,13 @@ magneticForTag=string;
 
 magneticForNum=[];
 maxR2ndHarmonic=[];
-kad = [];
-kfl = [];
+rad = [];
+rfl = [];
 off = [];
 c = [];
+rphe = [];
+off1 = [];
+c1 = [];
 
 for i=1:number
     % Here we can add an if to separate 2 types of measurements.
@@ -45,26 +48,25 @@ for i=1:number
     
     
     % Plot
-    figure(1)
-    plot(y(:,1),y(:,3))
-    hold on
-    grid on
-    
-    figure(2)
+    figure
     plot(y(:,1),y(:,2))
+    title(['The 1st harmonic result of ',char(magneticForTag(i+1)),'mT'])
+    xlabel('Angle')
+    ylabel('Votage (V)')
     hold on
     grid on
     
     figure
     plot(y(:,1),y(:,3))
     title(['The 2nd harmonic result of ',char(magneticForTag(i+1)),'mT'])
-    xlabel('Degree')
+    xlabel('Angle')
     ylabel('Votage (V)')
     grid on
     
     % Fitting
-%     [kad(end+1), kfl(end+1), off(end+1), c(end+1)] = createFit(y(:,1),y(:,3),char(magneticForTag(i+1)))
-    createFit(y(:,1),y(:,3),char(magneticForTag(i+1)))
+    [rphe(end+1), off1(end+1), c1(end+1)] =  create1stFit(y(:,1),y(:,2),char(magneticForTag(i+1)));
+    [rad(end+1), rfl(end+1), off(end+1), c(end+1)] = create2ndFit(y(:,1),y(:,3),char(magneticForTag(i+1)));
+%     create2ndFit(y(:,1),y(:,3),char(magneticForTag(i+1)));
     
     clearvars y isNegative magneticField thickness
 end
@@ -72,21 +74,21 @@ end
 thicknessForTag(1)=[];
 magneticForTag(1)=[];
 
-figure(1)
-title("2nd harmonic");
-legend(magneticForTag);
-xlabel('Degree')
-ylabel('Votage (V)')
-
-figure(2)
-title("1st harmonic");
-legend(magneticForTag);
-xlabel('Degree')
-ylabel('Votage (V)')
+% figure(1)
+% title("2nd harmonic");
+% legend(magneticForTag);
+% xlabel('Degree')
+% ylabel('Votage (V)')
+% 
+% figure(2)
+% title("1st harmonic");
+% legend(magneticForTag);
+% xlabel('Degree')
+% ylabel('Votage (V)')
 
 figure
 scatter(magneticForNum,maxR2ndHarmonic)
-xlabel('Degree')
+xlabel('Magnetic field (mT)')
 ylabel('Votage (V)')
 box on
 grid on
@@ -126,11 +128,46 @@ y=[dataArray{1:end-1}];
 
 end
 
-function [fitresult, gof, kad, kfl, off, c] = createFit(x, y, field)
+function [rphe, off1, c1] = create1stFit(x, y, field)
+%% Fit: 'untitled fit 1'.
 [xData, yData] = prepareCurveData( x, y );
 
 % Set up fittype and options.
-ft = fittype( 'kad*cos(x+off)+kfl*(2*cos(x+off)^3-cos(x+off))+c', 'independent', 'x', 'dependent', 'y' );
+ft = fittype( 'rphe*sin(2*x+2*off1)+c1', 'independent', 'x', 'dependent', 'y' );
+opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+opts.DiffMinChange = 1e-10;
+opts.Display = 'Off';
+opts.MaxFunEvals = 600;
+opts.MaxIter = 400;
+opts.Robust = 'LAR';
+opts.StartPoint = [0.0975404049994095 0.278498218867048 0.546881519204984];
+opts.TolFun = 1e-06;
+opts.TolX = 1e-06;
+
+% Fit model to data.
+[fitresult, gof] = fit( xData, yData, ft, opts );
+
+% Plot fit with data.
+figure( 'Name',field );
+rphe = fitresult.rphe
+off1 = fitresult.off1
+c1 = fitresult.c1
+plot(xData, yData ,'o');
+hold on 
+h = plot(fitresult);
+set(h, 'LineStyle',':', 'LineWidth',2)
+xlabel x
+ylabel y
+title(['Fitting result(1st) of ', field, 'mT case'])
+grid on
+
+end
+
+function [rad, rfl, off, c] = create2ndFit(x, y, field)
+[xData, yData] = prepareCurveData( x, y );
+
+% Set up fittype and options.
+ft = fittype( 'rad*cos(x+off)+rfl*(2*cos(x+off)^3-cos(x+off))+c', 'independent', 'x', 'dependent', 'y' );
 opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
 opts.DiffMinChange = 1e-10;
 opts.Display = 'Off';
@@ -146,18 +183,18 @@ opts.TolX = 1e-08;
 
 % Plot fit with data.
 figure( 'Name',field );
-kad = fitresult.kad;
-kfl = fitresult.kfl;
+rad = fitresult.rad;
+rfl = fitresult.rfl;
 off = fitresult.off;
 c = fitresult.c;
-rad = kad.*cos(xData+off)+c;
-rfl = kfl.*(2.*(cos(xData+off).^3)-cos(xData+off))+c;
+radCurve = rad.*cos(xData+off)+c;
+rflCurve = rfl.*(2.*(cos(xData+off).^3)-cos(xData+off))+c;
 plot(xData, yData ,'o');
 hold on 
 h = plot(fitresult);
 set(h, 'LineStyle',':', 'LineWidth',2)
 hold on 
-plot(  xData , rad , xData , rfl,'LineWidth',1.5)
+plot(  xData , radCurve , xData , rflCurve,'LineWidth',1.5)
 legend('Data points', 'Fitting curve', 'AD contribution', 'FL contribution', 'Location', 'NorthEast' );
 xlabel x
 ylabel y
