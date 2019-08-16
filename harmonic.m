@@ -8,8 +8,12 @@ number=length(fileName);
 thicknessForTag=string;
 magneticForTag=string;
 
-magneticForNum=[];
-maxR2ndHarmonic=[];
+% Parameters
+rRef = 20;
+bk = 1;
+
+magneticForNum = [];
+maxR2ndHarmonic = [];
 rad = [];
 rfl = [];
 off = [];
@@ -17,9 +21,39 @@ c = [];
 rphe = [];
 off1 = [];
 c1 = [];
+kUnknow = [];
+
+tagN = 0;
+tag = [];
 
 for i=1:number
-    % Here we can add an if to separate 2 types of measurements.
+    isDeg=~isempty(strfind(fileName(i).name,'deg'));
+    if isDeg==1
+        y = importfile(fileName(i).name);
+        
+        v0 = y(:,1);
+        i0=median(v0)/rRef;
+        y(:,1) = y(:,1)./i0;
+        y(:,2) = y(:,2)./i0;
+        har45Deg = y;
+        tag=i;
+        tagN=tagN+1;
+    end
+    clearvars y isDeg
+end
+
+fileName(tag)=[];
+if tagN~=0
+    number=number-tagN;
+    i0=median(v0)/rRef;
+else
+    "Lack of the value of current. Please enter it."
+    i0=input('In (A)\n')
+end
+clearvars tag tagN    
+
+
+for i=1:number    
     % Extract the thickness and magnetic field.
     patternTh = '(?<=Py_)\w*(?=nm_)';
     patternMag = '(?<=harmonic)\-?\w*(?=\(mT\))';
@@ -32,6 +66,8 @@ for i=1:number
     
     y = importfile(fileName(i).name);
     y(:,1)=y(:,1).*pi./180;
+    y(:,2)=y(:,2)./i0;
+    y(:,3)=y(:,3)./i0;
     
     isNegative=~isempty(strfind(magneticField{1},'-'));
     
@@ -48,23 +84,16 @@ for i=1:number
     
     
     % Plot
-    figure
+    figure(1)
     plot(y(:,1),y(:,2))
-    title(['The 1st harmonic result of ',char(magneticForTag(i+1)),'mT'])
-    xlabel('Angle')
-    ylabel('Votage (V)')
     hold on
-    grid on
     
-    figure
+    figure(2)
     plot(y(:,1),y(:,3))
-    title(['The 2nd harmonic result of ',char(magneticForTag(i+1)),'mT'])
-    xlabel('Angle')
-    ylabel('Votage (V)')
-    grid on
+    hold on
     
     % Fitting
-    [rphe(end+1), off1(end+1), c1(end+1)] =  create1stFit(y(:,1),y(:,2),char(magneticForTag(i+1)));
+    [rphe(end+1), off1(end+1), c1(end+1), kUnknow(end+1)] =  create1stFit(y(:,1),y(:,2),char(magneticForTag(i+1)));
     [rad(end+1), rfl(end+1), off(end+1), c(end+1)] = create2ndFit(y(:,1),y(:,3),char(magneticForTag(i+1)));
 %     create2ndFit(y(:,1),y(:,3),char(magneticForTag(i+1)));
     
@@ -74,23 +103,83 @@ end
 thicknessForTag(1)=[];
 magneticForTag(1)=[];
 
-% figure(1)
-% title("2nd harmonic");
-% legend(magneticForTag);
-% xlabel('Degree')
-% ylabel('Votage (V)')
-% 
-% figure(2)
-% title("1st harmonic");
-% legend(magneticForTag);
-% xlabel('Degree')
-% ylabel('Votage (V)')
+% Show raw data plots
+figure(1)
+title("The 1st harmonic result");
+legend(magneticForTag);
+xlabel('Angle')
+ylabel('Resistance (\Omega)')
+grid on
+
+figure(2)
+title("The 2nd harmonic result");
+legend(magneticForTag);
+xlabel('Angle')
+ylabel('Resistance (\Omega)')
+grid on
 
 figure
 scatter(magneticForNum,maxR2ndHarmonic)
 xlabel('Magnetic field (mT)')
-ylabel('Votage (V)')
+ylabel('R^{2\omega}_{xy,max} (\Omega)')
 box on
+grid on
+
+bInvK = 1./(magneticForNum./1000+bk);
+bInv = 1./(magneticForNum./1000);
+rflSub = rfl./rphe;
+
+%% Fit: For B_AD
+[xData, yData] = prepareCurveData( bInvK, rad );
+
+% Set up fittype and options.
+ft = fittype( 'poly1' );
+
+% Fit model to data.
+[fitresult, gof] = fit( xData, yData, ft );
+
+% Plot fit with data.
+figure( 'Name','B_AD' );
+plot(xData, yData ,'o');
+hold on 
+h = plot(fitresult);
+set(h, 'LineStyle',':', 'LineWidth',2)
+xlabel('1/(B_{ext}+B_k) (T^{-1})')
+ylabel('R_{AD+\nablaT} (\Omega)')
+grid on
+
+bAD=fitresult.p1;
+
+clearvars xData yData
+
+%% Fit: For B_FL
+[xData, yData] = prepareCurveData( bInv, rflSub );
+
+% Set up fittype and options.
+ft = fittype( 'poly1' );
+
+% Fit model to data.
+[fitresult, gof] = fit( xData, yData, ft );
+
+% Plot fit with data.
+figure( 'Name','B_FL' );
+plot(xData, yData ,'o');
+hold on 
+h = plot(fitresult);
+set(h, 'LineStyle',':', 'LineWidth',2)
+xlabel('1/B_{ext} (T^{-1})')
+ylabel('R_{FL+Oe}/R_{PHE} (\Omega)')
+grid on
+
+bFLOE=fitresult.p1;
+
+clearvars xData yData
+
+%% Plot of 45deg
+figure('Name','45deg')
+plot(har45Deg(:,3),har45Deg(:,2))
+xlabel 'H (Oe)'
+ylabel 'R^{2\omega}_{xy} {\Omega}'
 grid on
 
 function y = importfile(filename, startRow, endRow)
@@ -128,36 +217,38 @@ y=[dataArray{1:end-1}];
 
 end
 
-function [rphe, off1, c1] = create1stFit(x, y, field)
+function [rphe, off1, c1, kUnknow] = create1stFit(x, y, field)
 %% Fit: 'untitled fit 1'.
 [xData, yData] = prepareCurveData( x, y );
 
 % Set up fittype and options.
-ft = fittype( 'rphe*sin(2*x+2*off1)+c1', 'independent', 'x', 'dependent', 'y' );
+ft = fittype( 'rphe*sin(2*x+2*off1)+c1+kUnknow*cos(x+off1)', 'independent', 'x', 'dependent', 'y' );
+% ft = fittype( 'rphe*sin(2*x+2*off1)+c1', 'independent', 'x', 'dependent', 'y' );
 opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
 opts.DiffMinChange = 1e-10;
 opts.Display = 'Off';
 opts.MaxFunEvals = 600;
 opts.MaxIter = 400;
 opts.Robust = 'LAR';
-opts.StartPoint = [0.0975404049994095 0.278498218867048 0.546881519204984];
-opts.TolFun = 1e-06;
-opts.TolX = 1e-06;
+opts.StartPoint = [0.1 0.278498218867048 0.2 0];
+opts.TolFun = 1e-07;
+opts.TolX = 1e-07;
 
 % Fit model to data.
 [fitresult, gof] = fit( xData, yData, ft, opts );
 
 % Plot fit with data.
 figure( 'Name',field );
-rphe = fitresult.rphe
-off1 = fitresult.off1
-c1 = fitresult.c1
+rphe = fitresult.rphe;
+off1 = fitresult.off1;
+c1 = fitresult.c1;
+kUnknow = fitresult.kUnknow;
 plot(xData, yData ,'o');
 hold on 
 h = plot(fitresult);
 set(h, 'LineStyle',':', 'LineWidth',2)
-xlabel x
-ylabel y
+xlabel('Angle')
+ylabel('Resistance (\Omega)')
 title(['Fitting result(1st) of ', field, 'mT case'])
 grid on
 
@@ -196,8 +287,8 @@ set(h, 'LineStyle',':', 'LineWidth',2)
 hold on 
 plot(  xData , radCurve , xData , rflCurve,'LineWidth',1.5)
 legend('Data points', 'Fitting curve', 'AD contribution', 'FL contribution', 'Location', 'NorthEast' );
-xlabel x
-ylabel y
+xlabel('Angle')
+ylabel('Resistance (\Omega)')
 title(['Fitting result of ', field, 'mT case'])
 grid on
 end
