@@ -10,7 +10,9 @@ magneticForTag=string;
 
 % Parameters
 rRef = 20;
+rAhe = -0.119;
 bk = 1;
+isReverse = 0;
 
 magneticForNum = [];
 maxR2ndHarmonic = [];
@@ -35,6 +37,12 @@ for i=1:number
         i0=median(v0)/rRef;
         y(:,1) = y(:,1)./i0;
         y(:,2) = y(:,2)./i0;
+        
+        if isReverse==1
+            y(:,1) = -y(:,1);
+            y(:,2) = -y(:,2);
+        end
+        
         har45Deg = y;
         tag=i;
         tagN=tagN+1;
@@ -68,6 +76,11 @@ for i=1:number
     y(:,1)=y(:,1).*pi./180;
     y(:,2)=y(:,2)./i0;
     y(:,3)=y(:,3)./i0;
+    
+    if isReverse==1
+        y(:,2) = -y(:,2);
+        y(:,3) = -y(:,3);
+    end
     
     isNegative=~isempty(strfind(magneticField{1},'-'));
     
@@ -127,10 +140,11 @@ grid on
 
 bInvK = 1./(magneticForNum./1000+bk);
 bInv = 1./(magneticForNum./1000);
+radSub = rad./rAhe;
 rflSub = rfl./rphe;
 
 %% Fit: For B_AD
-[xData, yData] = prepareCurveData( bInvK, rad );
+[xData, yData] = prepareCurveData( bInvK, radSub );
 
 % Set up fittype and options.
 ft = fittype( 'poly1' );
@@ -145,12 +159,12 @@ hold on
 h = plot(fitresult);
 set(h, 'LineStyle',':', 'LineWidth',2)
 xlabel('1/(B_{ext}+B_k) (T^{-1})')
-ylabel('R_{AD+\nablaT} (\Omega)')
+ylabel('R_{AD+\nablaT}/R_{AHE}')
 grid on
 
 bAD=fitresult.p1;
 
-clearvars xData yData
+clearvars xData yData ft
 
 %% Fit: For B_FL
 [xData, yData] = prepareCurveData( bInv, rflSub );
@@ -173,7 +187,7 @@ grid on
 
 bFLOE=fitresult.p1;
 
-clearvars xData yData
+clearvars xData yData ft
 
 %% Plot of 45deg
 figure('Name','45deg')
@@ -181,6 +195,8 @@ plot(har45Deg(:,3),har45Deg(:,2))
 xlabel 'H (Oe)'
 ylabel 'R^{2\omega}_{xy} {\Omega}'
 grid on
+
+"Finished"
 
 function y = importfile(filename, startRow, endRow)
 %% Initialization
