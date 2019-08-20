@@ -23,7 +23,7 @@ c = [];
 rphe = [];
 off1 = [];
 c1 = [];
-kUnknow = [];
+kOne = [];
 
 tagN = 0;
 tag = [];
@@ -106,7 +106,7 @@ for i=1:number
     hold on
     
     % Fitting
-    [rphe(end+1), off1(end+1), c1(end+1), kUnknow(end+1)] =  create1stFit(y(:,1),y(:,2),char(magneticForTag(i+1)));
+    [rphe(end+1), off1(end+1), c1(end+1), kOne(end+1)] =  create1stFit(y(:,1),y(:,2),char(magneticForTag(i+1)));
     [rad(end+1), rfl(end+1), off(end+1), c(end+1)] = create2ndFit(y(:,1),y(:,3),char(magneticForTag(i+1)));
 %     create2ndFit(y(:,1),y(:,3),char(magneticForTag(i+1)));
     
@@ -121,6 +121,9 @@ figure(1)
 title("The 1st harmonic result");
 legend(magneticForTag);
 xlabel('Angle')
+xlim([0,2*pi])
+xticks(0:pi/2:2*pi)
+xticklabels({'0','\pi/2','\pi','3\pi/2','2\pi'})
 ylabel('Resistance (\Omega)')
 grid on
 
@@ -128,6 +131,10 @@ figure(2)
 title("The 2nd harmonic result");
 legend(magneticForTag);
 xlabel('Angle')
+xlim([0,2*pi])
+xticks(0:pi/2:2*pi)
+xticklabels({'0','\pi/2','\pi','3\pi/2','2\pi'})
+
 ylabel('Resistance (\Omega)')
 grid on
 
@@ -233,12 +240,14 @@ y=[dataArray{1:end-1}];
 
 end
 
-function [rphe, off1, c1, kUnknow] = create1stFit(x, y, field)
+function [rphe, off1, c1, kOne] = create1stFit(x, y, field)
 %% Fit: 'untitled fit 1'.
 [xData, yData] = prepareCurveData( x, y );
 
+hField=str2num(field)/1000;
+
 % Set up fittype and options.
-ft = fittype( 'rphe*sin(2*x+2*off1)+c1+kUnknow*cos(x+off1)', 'independent', 'x', 'dependent', 'y' );
+ft = fittype( 'rphe*sin(2*x+2*off1)+c1+kOne*hField*cos(x+off1)', 'independent', 'x', 'dependent', 'y', 'problem', 'hField' );
 % ft = fittype( 'rphe*sin(2*x+2*off1)+c1', 'independent', 'x', 'dependent', 'y' );
 opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
 opts.DiffMinChange = 1e-10;
@@ -251,19 +260,22 @@ opts.TolFun = 1e-07;
 opts.TolX = 1e-07;
 
 % Fit model to data.
-[fitresult, gof] = fit( xData, yData, ft, opts );
+[fitresult, gof] = fit( xData, yData, ft, opts , 'problem', hField);
 
 % Plot fit with data.
 figure( 'Name',field );
 rphe = fitresult.rphe;
 off1 = fitresult.off1;
 c1 = fitresult.c1;
-kUnknow = fitresult.kUnknow;
+kOne = fitresult.kOne;
 plot(xData, yData ,'o');
 hold on 
 h = plot(fitresult);
 set(h, 'LineStyle',':', 'LineWidth',2)
 xlabel('Angle')
+xlim([0,2*pi])
+xticks(0:pi/2:2*pi)
+xticklabels({'0','\pi/2','\pi','3\pi/2','2\pi'})
 ylabel('Resistance (\Omega)')
 title(['Fitting result(1st) of ', field, 'mT case'])
 grid on
@@ -304,6 +316,9 @@ hold on
 plot(  xData , radCurve , xData , rflCurve,'LineWidth',1.5)
 legend('Data points', 'Fitting curve', 'AD contribution', 'FL contribution', 'Location', 'NorthEast' );
 xlabel('Angle')
+xlim([0,2*pi])
+xticks(0:pi/2:2*pi)
+xticklabels({'0','\pi/2','\pi','3\pi/2','2\pi'})
 ylabel('Resistance (\Omega)')
 title(['Fitting result of ', field, 'mT case'])
 grid on
